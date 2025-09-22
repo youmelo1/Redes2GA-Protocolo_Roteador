@@ -1,0 +1,49 @@
+# docker-compose.yml (Versão Final)
+
+networks:
+  roteamento-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+services:
+  r1:
+    build: .
+    container_name: r1
+    networks:
+      roteamento-net:
+        ipv4_address: 172.28.0.101 # IP Fixo para r1
+    cap_add:
+      - NET_ADMIN
+    command: python simple_router.py --config configs/config_r1.json
+
+  r2:
+    build: .
+    container_name: r2
+    networks:
+      roteamento-net:
+        ipv4_address: 172.28.0.102 # IP Fixo para r2
+    cap_add:
+      - NET_ADMIN
+    command: python simple_router.py --config configs/config_r2.json
+
+  r3:
+    build: .
+    container_name: r3
+    networks:
+      roteamento-net:
+        ipv4_address: 172.28.0.103 # IP Fixo para r3
+    cap_add:
+      - NET_ADMIN
+    command: python simple_router.py --config configs/config_r3.json
+  
+  r4:
+    build: .
+    container_name: r4
+    networks:
+      roteamento-net:
+        ipv4_address: 172.28.0.104 # IP Fixo para r4
+    cap_add:
+      - NET_ADMIN
+    command: python simple_router.py --config configs/config_r4.json

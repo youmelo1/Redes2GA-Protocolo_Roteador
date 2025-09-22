@@ -1,0 +1,10 @@
+{
+    "router_id": "r3",
+    "listen_port": 5003,
+    "network_map": { "r1": "10.0.1.0/24", "r2": "10.0.2.0/24", "r3": "10.0.3.0/24", "r4": "10.0.4.0/24" },
+    "neighbors": [
+        { "id": "r1", "ip": "172.28.0.101", "port": 5001, "metrics": {"bandwidth_mbps": 100, "latency_ms": 50} },
+        { "id": "r2", "ip": "172.28.0.102", "port": 5002, "metrics": {"bandwidth_mbps": 1000, "latency_ms": 5} },
+        { "id": "r4", "ip": "172.28.0.104", "port": 5004, "metrics": {"bandwidth_mbps": 500, "latency_ms": 10} }
+    ]
+}
