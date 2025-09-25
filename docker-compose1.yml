@@ -1,4 +1,4 @@
-# docker-compose.yml (Versão Corrigida para 6 Roteadores)
+# docker-compose.yml
 
 networks:
   roteamento-net:
@@ -8,16 +8,6 @@ networks:
         - subnet: 172.28.0.0/16
 
 services:
-  r0:
-    build: .
-    container_name: r0
-    networks:
-      roteamento-net:
-        ipv4_address: 172.28.0.100
-    cap_add:
-      - NET_ADMIN
-    command: python simple_router.py --config configs/config_r0.json
-
   r1:
     build: .
     container_name: r1
@@ -47,7 +37,7 @@ services:
     cap_add:
       - NET_ADMIN
     command: python simple_router.py --config configs/config_r3.json
-
+  
   r4:
     build: .
     container_name: r4
@@ -67,3 +57,23 @@ services:
     cap_add:
       - NET_ADMIN
     command: python simple_router.py --config configs/config_r5.json
+
+  r6:
+    build: .
+    container_name: r6
+    networks:
+      roteamento-net:
+        ipv4_address: 172.28.0.106
+    cap_add:
+      - NET_ADMIN
+    command: python simple_router.py --config configs/config_r6.json
+
+  r7:
+    build: .
+    container_name: r7
+    networks:
+      roteamento-net:
+        ipv4_address: 172.28.0.107
+    cap_add:
+      - NET_ADMIN
+    command: python simple_router.py --config configs/config_r7.json

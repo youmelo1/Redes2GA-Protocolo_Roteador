@@ -1,5 +1,5 @@
 {
-    "router_id": "r4", "listen_port": 5004,
+    "router_id": "r5", "listen_port": 5005,
     "network_map": { "r0":"10.0.0.0/24", "r1":"10.0.1.0/24", "r2":"10.0.2.0/24", "r3":"10.0.3.0/24", "r4":"10.0.4.0/24", "r5":"10.0.5.0/24" },
     "neighbors": [
         { "id": "r1", "ip": "172.28.0.101", "port": 5001, "metrics": {"bandwidth_mbps": 1000, "latency_ms": 5} }

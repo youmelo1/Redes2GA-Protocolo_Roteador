@@ -166,22 +166,32 @@ class SimpleRouter:
         
         self.logger.info(f"Roteador iniciado. Ouvindo em {self.listen_ip}:{self.listen_port}")
 
+    # Dentro da classe SimpleRouter, substitua este método:
+
     def _calculate_composite_cost(self, metrics: dict) -> float:
         """
-        Calcula um custo composto com base em várias métricas.
-        Esta é a "inteligência" customizada do nosso protocolo.
+        Calcula um custo composto com base em várias métricas,
+        agora com um cálculo de congestão dinâmico.
         """
-        # Métrica 1: Latência (quanto maior, pior o custo). Padrão de 500ms se não definida.
         latency = metrics.get("latency_ms", 500)
-        
-        # Métrica 2: Largura de Banda (quanto maior, melhor, por isso usamos o inverso).
         bandwidth = metrics.get("bandwidth_mbps", 1)
         bandwidth_cost = 1000 / bandwidth
         
-        # Métrica 3: Congestão (penaliza links originados em roteadores muito conectados).
-        congestion_cost = len(self.neighbors) * 0.5
+        # --- LÓGICA DE CONGESTÃO DINÂMICA ---
+        # Conta apenas os vizinhos que foram vistos recentemente (estão ativos)
+        # Um vizinho é considerado ativo se foi visto no último período de TIMEOUT
+        now = time.time()
+        active_neighbors_count = 0
+        for neighbor in self.neighbors.values():
+            if (now - neighbor["last_seen"]) < TIMEOUT_INTERVAL:
+                active_neighbors_count += 1
 
-        # Fórmula final que combina todas as métricas num único valor de custo.
+        # No arranque, last_seen é 0, então contamos os vizinhos configurados
+        if active_neighbors_count == 0 and all(n["last_seen"] == 0 for n in self.neighbors.values()):
+            congestion_cost = len(self.neighbors) * 0.5
+        else:
+            congestion_cost = active_neighbors_count * 0.5
+
         return latency + bandwidth_cost + congestion_cost
 
     def send_routing_updates(self):
@@ -211,6 +221,8 @@ class SimpleRouter:
                 pass # Ignora erros se o socket estiver ocupado ou o vizinho não for alcançável
         self.last_update_sent = time.time()
 
+    # Dentro da classe SimpleRouter:
+
     def process_incoming_message(self, payload: bytes, source_address: tuple) -> bool:
         """
         Processa uma atualização de tabela recebida de um vizinho, aplicando as
@@ -229,9 +241,24 @@ class SimpleRouter:
         if sender_id not in self.neighbors:
             return False
         
-        # Atualiza o timestamp do vizinho, provando que ele está online.
-        self.neighbors[sender_id]["last_seen"] = time.time()
         table_changed = False
+
+        # --- LÓGICA DE DETEÇÃO DE VIZINHO RECUPERADO ---
+        # Verificamos se o vizinho estava offline (last_seen == 0) antes desta mensagem.
+        # O last_seen é zerado pela função de timeout.
+        was_offline = self.neighbors[sender_id]["last_seen"] == 0
+        
+        # Atualizamos o timestamp do vizinho, provando que ele está online.
+        self.neighbors[sender_id]["last_seen"] = time.time()
+        
+        # Se ele estava offline, a nossa contagem de vizinhos ativos mudou, então
+        # recalculamos os custos dos nossos links de saída.
+        if was_offline:
+            self.logger.info(f"Vizinho {sender_id} voltou a ficar online. A recalcular custos de link.")
+            self._recalculate_link_costs()
+            # Forçamos uma atualização para que a rede saiba dos nossos novos custos.
+            table_changed = True
+
         cost_to_neighbor = self.neighbors[sender_id]["cost"]
 
         # Itera por cada rota anunciada pelo vizinho.
@@ -276,17 +303,34 @@ class SimpleRouter:
                 
         return table_changed
 
+    def _recalculate_link_costs(self):
+        """
+        Recalcula o custo de todos os links de saída com base no estado atual
+        dos vizinhos. Chamado quando a topologia de vizinhos muda (ex: timeout).
+        """
+        self.logger.info("A recalcular custos de link devido a mudança na topologia de vizinhos.")
+        # Itera por todos os vizinhos e atualiza o seu custo de link guardado
+        for neighbor_id in self.neighbors:
+            new_cost = self._calculate_composite_cost(self.neighbors[neighbor_id]["metrics"])
+            self.neighbors[neighbor_id]["cost"] = new_cost
+            
+
     def check_neighbor_timeouts(self) -> bool:
         """
         Verifica se algum vizinho ficou offline (timeout), envenena as rotas que
-        dependiam dele e inicia os timers de Hold-Down.
+        dependiam dele e inicia os timers de Hold-Down e recalcula os custos de link se necessário.
         """
         table_changed = False
         now = time.time()
+        
+        # Usamos uma flag para saber se algum vizinho caiu nesta verificação
+        any_timeout_detected = False
+        
         for neighbor_id in self.neighbors.keys():
             # A condição verifica se já recebemos alguma mensagem deste vizinho e se o tempo
             # desde a última mensagem é maior que o intervalo de timeout.
             if self.neighbors[neighbor_id]["last_seen"] > 0 and now - self.neighbors[neighbor_id]["last_seen"] > TIMEOUT_INTERVAL:
+                any_timeout_detected = True # Marcamos que uma mudança na topologia ocorreu
                 self.logger.info(f"TIMEOUT! Vizinho {neighbor_id} parece estar offline.")
                 for dest, info in self.routing_table.items():
                     # Para cada rota na nossa tabela que usava o vizinho morto como próximo salto...
@@ -298,6 +342,12 @@ class SimpleRouter:
                         table_changed = True
                 # Resetamos o timestamp para não disparar o timeout repetidamente.
                 self.neighbors[neighbor_id]["last_seen"] = 0
+                
+        # Se pelo menos um vizinho deu timeout, então o nosso número de vizinhos mudou.
+        # Por isso, recalculamos os nossos custos de link.
+        if any_timeout_detected:
+            self._recalculate_link_costs()
+            
         return table_changed
 
     def print_routing_table(self):
