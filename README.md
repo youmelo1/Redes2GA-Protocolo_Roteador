@@ -5,8 +5,8 @@ Este projeto, desenvolvido para a disciplina de Fundamentos de Sistemas Operacio
 ## Funcionalidades Principais
 
 -   **Protocolo Vetor de Distância:** Baseado na lógica do algoritmo Bellman-Ford, similar ao RIP. Os roteadores trocam as suas tabelas de roteamento com os vizinhos para descobrir a topologia da rede.
--   **Métricas Compostas:** A decisão de qual caminho é o melhor não se baseia apenas em saltos, mas sim num **custo composto** calculado a partir de múltiplas métricas definidas nos arquivos de configuração (latência, largura de banda, congestão).
--   **Adaptação Dinâmica a Falhas:** O protocolo implementa múltiplos mecanismos para garantir a estabilidade da rede e a rápida convergência após falhas.
+-   **Métricas Compostas e Dinâmicas:** A decisão de qual caminho é o melhor não se baseia apenas em saltos, mas sim num **custo composto** a partir de múltiplas métricas, onde a penalidade de congestão é calculada dinamicamente com base no número de vizinhos ativos.
+-   **Adaptação Dinâmica a Falhas e Recuperações:** O protocolo implementa múltiplos mecanismos para garantir a estabilidade da rede e a rápida convergência após falhas ou recuperações de links.
 -   **Sincronização com o Sistema Operacional:** O protocolo aplica as rotas calculadas diretamente na tabela de roteamento do kernel Linux dentro do container, tornando-o um agente de rede funcional.
 
 ## Como Funciona
@@ -15,10 +15,10 @@ Este projeto, desenvolvido para a disciplina de Fundamentos de Sistemas Operacio
 A "inteligência" do protocolo reside no método `_calculate_composite_cost`. Ele combina três fatores para determinar o "custo" de um link para um vizinho:
 1.  **Latência (`latency_ms`):** Contribui diretamente para o custo. Menor latência = melhor.
 2.  **Largura de Banda (`bandwidth_mbps`):** Contribui de forma inversa (`1000 / largura`). Maior largura de banda = melhor.
-3.  **Congestão:** Uma pequena penalidade é adicionada com base no número de vizinhos diretos que o roteador possui, para preferir caminhos menos congestionados. Isso torna o roteamento assimétrico, um comportamento realista em redes complexas.
+3.  **Congestão (Dinâmica):** Uma pequena penalidade é adicionada com base no número de vizinhos que estão **atualmente ativos** (online). Se um vizinho cai, o roteador torna-se "menos congestionado" e o custo dos seus links de saída diminui. Se um vizinho volta a ficar online, o custo aumenta. Isso faz com que o protocolo possa desviar o tráfego de forma inteligente, reagindo a mudanças na topologia da vizinhança.
 
 ### Mecanismos de Robustez
-Para evitar loops de roteamento e garantir a rápida convergência, o protocolo implementa três técnicas padrão da indústria:
+Para evitar loops de roteamento e garantir a rápida convergência, o protocolo implementa quatro técnicas padrão da indústria:
 
 1.  **Timeout de Vizinhos:** Se um roteador não recebe notícias de um vizinho direto por 30 segundos (`TIMEOUT_INTERVAL`), ele considera que o vizinho caiu.
 2.  **Route Poisoning (Envenenamento de Rota):** Ao detetar um timeout, o roteador não apaga simplesmente as rotas que dependiam daquele vizinho. Em vez disso, ele as mantém na sua tabela mas define o seu custo como "infinito" (`INFINITY = 999`). Esta rota "envenenada" é então anunciada aos outros vizinhos, funcionando como uma notificação explícita e rápida de que o caminho morreu.
